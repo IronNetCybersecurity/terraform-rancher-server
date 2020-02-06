@@ -94,7 +94,7 @@ resource "aws_launch_template" "rancher_master" {
   }
 
   network_interfaces {
-    associate_public_ip_address = true
+    associate_public_ip_address = false
     delete_on_termination       = true
     security_groups             = [aws_security_group.rancher.id]
   }
@@ -128,7 +128,7 @@ resource "aws_launch_template" "rancher_worker" {
   }
 
   network_interfaces {
-    associate_public_ip_address = true
+    associate_public_ip_address = false
     delete_on_termination       = true
     security_groups             = [aws_security_group.rancher.id]
   }
@@ -181,7 +181,7 @@ resource "aws_instance" "rancher_master" {
 
   vpc_security_group_ids      = [aws_security_group.rancher.id]
   subnet_id                   = element(tolist(local.rancher2_master_subnet_ids), 0)
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   root_block_device {
     volume_type = "gp2"
@@ -200,7 +200,7 @@ resource "aws_instance" "rancher_worker" {
 
   vpc_security_group_ids      = [aws_security_group.rancher.id]
   subnet_id                   = element(tolist(local.rancher2_worker_subnet_ids), 0)
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   root_block_device {
     volume_type = "gp2"
@@ -214,7 +214,7 @@ resource "aws_lb" "rancher_api" {
   name_prefix        = "rancha"
   internal           = false
   load_balancer_type = "network"
-  subnets            = local.rancher2_master_subnet_ids
+  subnets            = var.lb_subnet_ids
 
   enable_deletion_protection = true
 
@@ -278,7 +278,7 @@ resource "null_resource" "wait_for_docker" {
   provisioner "local-exec" {
     command = <<EOF
 while [ "$${RET}" -gt 0 ]; do
-    ssh -q -o StrictHostKeyChecking=no -i $${KEY} $${USER}@$${IP} 'docker ps 2>&1 >/dev/null'
+    ssh -q -o StrictHostKeyChecking=no -i $${KEY} -o ProxyCommand="$${PROXY_COMMAND}" $${USER}@$${IP} 'docker ps 2>&1 >/dev/null'
     RET=$?
     if [ "$${RET}" -gt 0 ]; then
         sleep 10
@@ -288,10 +288,11 @@ EOF
 
 
     environment = {
-      RET  = "1"
-      USER = var.instance_ssh_user
-      IP   = local.use_asgs_for_rancher_infra ? element(concat(data.aws_instances.rancher_master.public_ips, aws_instance.rancher_worker.*.public_ip), count.index) : element(concat(aws_instance.rancher_master.*.public_ip, aws_instance.rancher_worker.*.public_ip), count.index)
-      KEY  = "${var.creds_output_path}/id_rsa"
+      RET           = "1"
+      USER          = var.instance_ssh_user
+      PROXY_COMMAND = "ssh -q -o StrictHostKeyChecking=no -i ./id_bastion_rsa -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@${var.bastion_dns}"
+      IP            = local.use_asgs_for_rancher_infra ? element(concat(data.aws_instances.rancher_master.private_ips, aws_instance.rancher_worker.*.private_ip), count.index) : element(concat(aws_instance.rancher_master.*.public_ip, aws_instance.rancher_worker.*.public_ip), count.index)
+      KEY           = "${var.creds_output_path}/id_rsa"
     }
   }
 }
@@ -345,7 +346,7 @@ resource "aws_lb" "rancher_alb" {
   name_prefix                = "ranalb"
   internal                   = false
   load_balancer_type         = "application"
-  subnets                    = local.rancher2_worker_subnet_ids
+  subnets                    = var.lb_subnet_ids
   security_groups            = [aws_security_group.rancher_elb.id]
   enable_deletion_protection = true
 
@@ -408,12 +409,6 @@ resource "aws_lb_listener" "rancher_alb_https" {
   }
 }
 
-resource "aws_lb_target_group_attachment" "rancher_alb" {
-  count            = local.use_asgs_for_rancher_infra ? 0 : 1
-  target_group_arn = aws_lb_target_group.rancher_alb.arn
-  target_id        = aws_instance.rancher_worker.*.id
-}
-
 resource "aws_route53_record" "rancher_alb" {
   zone_id  = data.aws_route53_zone.dns_zone.zone_id
   name     = "${local.name}.${local.domain}"
@@ -426,4 +421,3 @@ resource "aws_route53_record" "rancher_alb" {
     evaluate_target_health = true
   }
 }
-
