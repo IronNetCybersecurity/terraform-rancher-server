@@ -4,10 +4,17 @@
 resource "rke_cluster" "rancher_server" {
   depends_on = [null_resource.wait_for_docker]
 
+  bastion_host {
+    address      = var.bastion_dns
+    user         = "ec2-user"
+    ssh_key_path = "${var.creds_output_path}/id_bastion_rsa"
+    #port = 22
+  }
+
   dynamic nodes {
     for_each = local.master_instances_ips
     content {
-      address          = nodes.value.public_ip
+      address          = nodes.value.private_ip
       internal_address = nodes.value.private_ip
       user             = var.instance_ssh_user
       role             = ["controlplane", "etcd"]
@@ -15,10 +22,11 @@ resource "rke_cluster" "rancher_server" {
     }
   }
 
+
   dynamic nodes {
     for_each = local.worker_instances_ips
     content {
-      address          = nodes.value.public_ip
+      address          = nodes.value.private_ip
       internal_address = nodes.value.private_ip
       user             = var.instance_ssh_user
       role             = ["worker"]
