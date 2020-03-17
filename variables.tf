@@ -166,12 +166,6 @@ variable "rancher2_worker_subnet_ids" {
   description = "List of subnet ids for Rancher worker nodes"
 }
 
-variable "lb_subnet_ids" {
-  type        = list
-  default     = []
-  description = "List of public facing subnet ids for Rancher load balancers"
-}
-
 variable "use_default_vpc" {
   type        = bool
   default     = true
@@ -228,9 +222,5 @@ variable "use_alb_instead_of_elb" {
   description = "Use ALB instead of ELB."
   type        = bool
   default     = false
-}
 
-variable "bastion_dns" {
-  description = "The Bastion dns name."
-  type        = string
 }
