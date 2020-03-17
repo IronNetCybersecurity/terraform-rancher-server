@@ -1,3 +1,13 @@
+output "rke_cluster_yaml" {
+  value       = rke_cluster.rancher_server.rke_cluster_yaml
+  description = "cluster.yml for cluster"
+}
+
+output "rke_state" {
+  value       = rke_cluster.rancher_server.rke_state
+  description = "cluster.rkestate for cluster"
+}
+
 output "master_addresses" {
   value       = aws_instance.rancher_master.*.public_ip
   description = "IP addresses of Rancher master nodes"
