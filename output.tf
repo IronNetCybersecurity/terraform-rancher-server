@@ -1,10 +1,10 @@
 output "master_addresses" {
-  value       = aws_instance.rancher_master.*.private_ip
+  value       = aws_instance.rancher_master.*.public_ip
   description = "IP addresses of Rancher master nodes"
 }
 
 output "worker_addresses" {
-  value       = aws_instance.rancher_worker.*.private_ip
+  value       = aws_instance.rancher_worker.*.public_ip
   description = "IP addresses of Rancher worker nodes"
 }
 
